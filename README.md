@@ -1,6 +1,8 @@
 # pugl-sys
 `pugl-sys` is a minimal zero-dependency bindings generator and a build script for [pugl](https://github.com/lv2/pugl), a minimal portability layer for GUIs which is suitable for use in plugins and applications.
 
+> The bindings are not yet thoroughly tested! Use at your own risk!
+
 > Pugl (PlUgin Graphics Library) is a minimal portability layer for GUIs which is
 > suitable for use in plugins and applications.  It works on X11, MacOS, and
 > Windows, and includes optional support for drawing with Vulkan, OpenGL, and
