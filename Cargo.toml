@@ -1,22 +1,7 @@
 [workspace]
-members = [
-    ".",
-    "generator"
+resolver = "3"
+members = [ 
+    "pugl-rs",
+    "pugl-rs-sys",
+    "pugl-rs-sys/generator"
 ]
-
-[package]
-name = "pugl-sys"
-version = "0.1.0"
-edition = "2024"
-
-[build-dependencies]
-cc = "1"
-
-[features]
-opengl = []
-vulkan = []
-cairo = []
-
-[[example]]
-name = "example"
-required-features = ["opengl"]

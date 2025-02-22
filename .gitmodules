@@ -1,3 +1,3 @@
 [submodule "pugl"]
-	path = pugl
+	path = pugl-rs-sys/pugl
 	url = https://github.com/lv2/pugl

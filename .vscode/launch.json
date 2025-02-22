@@ -1,0 +1,231 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'pugl_rs'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=pugl-rs"
+                ],
+                "filter": {
+                    "name": "pugl_rs",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'simple'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=simple",
+                    "--package=pugl-rs"
+                ],
+                "filter": {
+                    "name": "simple",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'simple'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=simple",
+                    "--package=pugl-rs"
+                ],
+                "filter": {
+                    "name": "simple",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'pugl_rs_sys'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=pugl-rs-sys"
+                ],
+                "filter": {
+                    "name": "pugl_rs_sys",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'cairo'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=cairo",
+                    "--package=pugl-rs-sys"
+                ],
+                "filter": {
+                    "name": "cairo",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'cairo'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=cairo",
+                    "--package=pugl-rs-sys"
+                ],
+                "filter": {
+                    "name": "cairo",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'opengl'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=opengl",
+                    "--package=pugl-rs-sys"
+                ],
+                "filter": {
+                    "name": "opengl",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'opengl'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=opengl",
+                    "--package=pugl-rs-sys"
+                ],
+                "filter": {
+                    "name": "opengl",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'vulkan'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=vulkan",
+                    "--package=pugl-rs-sys"
+                ],
+                "filter": {
+                    "name": "vulkan",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'vulkan'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=vulkan",
+                    "--package=pugl-rs-sys"
+                ],
+                "filter": {
+                    "name": "vulkan",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'pugl-sys-generator'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=pugl-sys-generator",
+                    "--package=pugl-sys-generator"
+                ],
+                "filter": {
+                    "name": "pugl-sys-generator",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'pugl-sys-generator'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=pugl-sys-generator",
+                    "--package=pugl-sys-generator"
+                ],
+                "filter": {
+                    "name": "pugl-sys-generator",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

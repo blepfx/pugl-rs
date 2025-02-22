@@ -23,12 +23,20 @@ fn build_linux() {
     build.file("pugl/src/x11.c");
     build.file("pugl/src/x11_stub.c");
 
-    if cfg!(feature = "cairo") {
+    #[cfg(feature = "cairo")]
+    {
+        let cairo = pkg_config::Config::new()
+            .probe("cairo")
+            .expect("system library `cairo` is not found");
+
+        build.includes(cairo.include_paths.as_slice());
         build.file("pugl/src/x11_cairo.c");
     }
+
     if cfg!(feature = "opengl") {
         build.file("pugl/src/x11_gl.c");
     }
+
     if cfg!(feature = "vulkan") {
         build.file("pugl/src/x11_vulkan.c");
     }
