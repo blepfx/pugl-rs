@@ -10,40 +10,8 @@ fn main() {
     } else if os == "macos" {
         build_macos();
     } else {
-        panic!("unsupported platform: {}", os);
+        panic!("pugl-sys unsupported platform: {}", os);
     }
-
-    // if os == "linux" {
-    // } else if os == "windows" {
-    //     println!("cargo:rustc-link-search=native=./pugl/build");
-    //     println!("cargo:rustc-link-lib=static=pugl_win-0");
-    //     println!("cargo:rustc-link-lib=static=pugl_win_stub-0");
-
-    //     if cfg!(feature = "cairo") {
-    //         println!("cargo:rustc-link-lib=static=pugl_win_cairo-0");
-    //     }
-    //     if cfg!(feature = "opengl") {
-    //         println!("cargo:rustc-link-lib=static=pugl_win_gl-0");
-    //     }
-    //     if cfg!(feature = "vulkan") {
-    //         println!("cargo:rustc-link-lib=static=pugl_win_vulkan-0");
-    //     }
-    // } else if os == "macos" {
-    //     println!("cargo:rustc-link-search=native=./pugl/build");
-    //     println!("cargo:rustc-link-lib=static=pugl_mac-0");
-    //     println!("cargo:rustc-link-lib=static=pugl_mac_stub-0");
-
-    //     if cfg!(feature = "cairo") {
-    //         println!("cargo:rustc-link-lib=static=pugl_mac_cairo-0");
-    //     }
-    //     if cfg!(feature = "opengl") {
-    //         println!("cargo:rustc-link-lib=static=pugl_mac_gl-0");
-    //
-    //     }
-    //     if cfg!(feature = "vulkan") {
-    //         println!("cargo:rustc-link-lib=static=pugl_mac_vulkan-0");
-    //     }
-    // }
 }
 
 fn build_linux() {
@@ -108,7 +76,14 @@ fn build_windows() {
 
     build.compile("pugl_win");
 
-    //TODO: link to the required libraries
+    println!("cargo:rustc-link-lib=dylib=user32");
+    println!("cargo:rustc-link-lib=dylib=gdi32");
+    println!("cargo:rustc-link-lib=dylib=dwmapi");
+    println!("cargo:rustc-link-lib=dylib=shlwapi");
+
+    if cfg!(feature = "opengl") {
+        println!("cargo:rustc-link-lib=dylib=opengl32");
+    }
 }
 
 fn build_macos() {

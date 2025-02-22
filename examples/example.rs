@@ -3,6 +3,10 @@ use std::ffi::{CStr, CString};
 
 extern "C" fn event_handler(view: *mut PuglView, event: *const PuglEvent) -> PuglStatus {
     unsafe {
+        if (*event).type_ == PUGL_CLOSE {
+            std::process::exit(0);
+        }
+
         if (*event).type_ == PUGL_BUTTON_PRESS {
             puglSetSizeHint(view, PUGL_CURRENT_SIZE, 200, 200);
         }
