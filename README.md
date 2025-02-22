@@ -1,5 +1,6 @@
 # pugl-sys
-`pugl-sys` is a minimal zero-dependency bindings generator and a build script for [pugl](https://github.com/lv2/pugl), a minimal portability layer for GUIs which is suitable for use in plugins and applications.
+`pugl-sys` is a minimal bindings generator and a build script for linking [pugl](https://github.com/lv2/pugl), a minimal portability layer for GUIs which is suitable for use in plugins and applications.
+
 
 > The bindings are not yet thoroughly tested! Use at your own risk!
 
@@ -39,7 +40,7 @@
 
 Add the following to your `Cargo.toml`
 ```toml
-pugl-sys = { git = "https://github.com/blepfx/pugl-sys", default-features = false, features = ["opengl", "cairo", "vulkan"] }
+pugl-sys = { git = "https://github.com/blepfx/pugl-sys", features = ["opengl", "cairo", "vulkan"] }
 ```
 
 ## Documentation
