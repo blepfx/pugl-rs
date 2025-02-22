@@ -92,17 +92,21 @@ fn build_macos() {
     build.include("pugl/include");
     build.file("pugl/src/common.c");
     build.file("pugl/src/internal.c");
-    build.file("pugl/src/mac.c");
-    build.file("pugl/src/mac_stub.c");
+    build.file("pugl/src/mac.m");
+    build.file("pugl/src/mac_stub.m");
+
+    build.flag("-Wno-deprecated");
+    build.define("GL_SILENCE_DEPRECATION", None); //suppress opengl deprecation warnings!!
+    build.warnings(false);
 
     if cfg!(feature = "cairo") {
-        build.file("pugl/src/mac_cairo.c");
+        build.file("pugl/src/mac_cairo.m");
     }
     if cfg!(feature = "opengl") {
-        build.file("pugl/src/mac_gl.c");
+        build.file("pugl/src/mac_gl.m");
     }
     if cfg!(feature = "vulkan") {
-        build.file("pugl/src/mac_vulkan.c");
+        build.file("pugl/src/mac_vulkan.m");
     }
 
     build.compile("pugl_mac");

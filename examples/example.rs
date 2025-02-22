@@ -23,8 +23,6 @@ extern "C" fn event_handler(view: *mut PuglView, event: *const PuglEvent) -> Pug
                 puglGetProcAddress(CString::new("glClear").unwrap().as_ptr()).unwrap(),
             );
 
-            print!("expose \n {:p} \n {:p}", gl_clear_color, gl_clear);
-
             gl_clear_color(1.0, 1.0, 0.0, 1.0);
             gl_clear(0x4000);
         }
