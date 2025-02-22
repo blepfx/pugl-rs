@@ -3,8 +3,6 @@ use std::ffi::{CStr, CString};
 
 extern "C" fn event_handler(view: *mut PuglView, event: *const PuglEvent) -> PuglStatus {
     unsafe {
-        println!("{:?}", (*event).type_);
-
         if (*event).type_ == PUGL_BUTTON_PRESS {
             puglSetSizeHint(view, PUGL_CURRENT_SIZE, 200, 200);
         }
@@ -20,6 +18,8 @@ extern "C" fn event_handler(view: *mut PuglView, event: *const PuglEvent) -> Pug
             let gl_clear: fn(u32) = std::mem::transmute(
                 puglGetProcAddress(CString::new("glClear").unwrap().as_ptr()).unwrap(),
             );
+
+            print!("expose \n {:p} \n {:p}", gl_clear_color, gl_clear);
 
             gl_clear_color(1.0, 1.0, 0.0, 1.0);
             gl_clear(0x4000);
@@ -67,7 +67,7 @@ fn main() {
         puglShow(view, PUGL_SHOW_RAISE);
 
         loop {
-            if puglUpdate(world, -1.0) != 0 {
+            if puglUpdate(world, 0.0) != 0 {
                 break;
             }
         }

@@ -10,7 +10,10 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = ["opengl", "vulkan", "cairo"]
 opengl = []
 vulkan = []
 cairo = []
+
+[[example]]
+name = "example"
+required-features = ["opengl"]

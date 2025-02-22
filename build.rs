@@ -4,6 +4,8 @@ fn main() {
     let os = std::env::var("CARGO_CFG_TARGET_OS").unwrap();
     let profile = std::env::var("PROFILE").unwrap();
 
+    println!("cargo:rerun-if-changed=pugl/meson.build");
+
     Command::new("meson")
         .current_dir("pugl")
         .args([
@@ -81,19 +83,6 @@ fn main() {
             libs.push("vulkan");
         }
     } else if os == "macos" {
-        libs.extend(["CoreFoundation", "CoreVideo"]);
-
-        if cfg!(feature = "opengl") {
-            libs.push("GL");
-        }
-
-        if cfg!(feature = "cairo") {
-            libs.push("cairo");
-        }
-
-        if cfg!(feature = "vulkan") {
-            libs.push("vulkan");
-        }
     } else {
         panic!("unsupported target os: only linux, windows and macos are supported")
     };
@@ -131,11 +120,15 @@ fn main() {
         println!("cargo:rustc-link-lib=static=pugl_mac-0");
         println!("cargo:rustc-link-lib=static=pugl_mac_stub-0");
 
+        println!("cargo:rustc-link-lib=framework=AppKit");
+        println!("cargo:rustc-link-lib=framework=CoreVideo");
+
         if cfg!(feature = "cairo") {
             println!("cargo:rustc-link-lib=static=pugl_mac_cairo-0");
         }
         if cfg!(feature = "opengl") {
             println!("cargo:rustc-link-lib=static=pugl_mac_gl-0");
+            println!("cargo:rustc-link-lib=framework=OpenGL");
         }
         if cfg!(feature = "vulkan") {
             println!("cargo:rustc-link-lib=static=pugl_mac_vulkan-0");
