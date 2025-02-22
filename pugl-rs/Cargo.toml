@@ -1,0 +1,9 @@
+[package]
+name = "pugl-rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+pugl-rs-sys = { path = "../pugl-rs-sys" }
+bitflags = "2.8"
+
