@@ -30,6 +30,7 @@ goals and priorities:
    and/or static linking.  Pugl can be installed as a library, or used by
    simply copying the implementation into a project.
 
+
 ## Installation
 
 Add the following to your `Cargo.toml`

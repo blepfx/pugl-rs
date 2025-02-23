@@ -1,4 +1,4 @@
-use pugl_sys::*;
+use pugl_rs_sys::*;
 use std::ffi::{CStr, CString};
 
 extern "C" fn event_handler(view: *mut PuglView, event: *const PuglEvent) -> PuglStatus {

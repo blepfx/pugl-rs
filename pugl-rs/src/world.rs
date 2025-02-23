@@ -1,5 +1,5 @@
 use crate::{Backend, UnrealizedView, sys};
-use std::{ffi::CStr, os::raw::c_void, time::Duration};
+use std::{ffi::CStr, os::raw::c_void, sync::Arc, time::Duration};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WorldError;
@@ -16,9 +16,7 @@ impl std::fmt::Display for WorldError {
 /// Several worlds can be created in a single process, but code using different worlds must be isolated so they are never mixed.
 /// Views are strongly associated with the world they were created in.
 #[repr(transparent)]
-pub struct World {
-    world: *mut sys::PuglWorld,
-}
+pub struct World(Arc<WorldInner>);
 
 unsafe impl Send for World {}
 unsafe impl Sync for World {}
@@ -27,17 +25,19 @@ unsafe impl Sync for World {}
 /// - X11: Returns a pointer to the Display.
 /// - MacOS: Returns a pointer to the NSApplication.
 /// - Windows: Returns the HMODULE of the calling process.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct NativeWorld {
     ptr: *mut c_void,
 }
 
 impl NativeWorld {
+    /// Returns a raw pointer to the native handle of the world.
     pub fn as_raw(&self) -> *mut c_void {
         self.ptr
     }
 
+    /// Constructs a `NativeWorld` from a raw pointer.
     pub unsafe fn from_raw(ptr: *mut c_void) -> Self {
         Self { ptr }
     }
@@ -47,10 +47,6 @@ unsafe impl Send for NativeWorld {}
 unsafe impl Sync for NativeWorld {}
 
 impl World {
-    pub(crate) fn from_inner(world: &*mut sys::PuglWorld) -> &Self {
-        unsafe { &*(world as *const *mut sys::PuglWorld as *const Self) }
-    }
-
     /// Create a new world in a `PROGRAM` mode. Used for top-level applications.
     pub fn new_program() -> Result<Self, WorldError> {
         unsafe {
@@ -58,7 +54,7 @@ impl World {
             if world.is_null() {
                 Err(WorldError)
             } else {
-                Ok(Self { world })
+                Ok(Self(WorldInner::wrap(world)))
             }
         }
     }
@@ -66,11 +62,11 @@ impl World {
     /// Create a new world in a `MODULE` mode. Used for plugins or modules within a larger applications.
     pub fn new_module() -> Result<Self, WorldError> {
         unsafe {
-            let world = sys::puglNewWorld(sys::PUGL_MODULE, 0);
+            let world = sys::puglNewWorld(sys::PUGL_MODULE, sys::PUGL_WORLD_THREADS);
             if world.is_null() {
                 Err(WorldError)
             } else {
-                Ok(Self { world })
+                Ok(Self(WorldInner::wrap(world)))
             }
         }
     }
@@ -81,7 +77,7 @@ impl World {
     pub fn with_class_name(self, string: &str) -> Self {
         unsafe {
             sys::puglSetWorldString(
-                self.world,
+                self.0.raw,
                 sys::PUGL_CLASS_NAME,
                 string.as_ptr() as *const _,
             );
@@ -93,7 +89,7 @@ impl World {
     /// See `with_class_name` for more information.
     pub fn class_name(&self) -> String {
         unsafe {
-            CStr::from_ptr(sys::puglGetWorldString(self.world, sys::PUGL_CLASS_NAME))
+            CStr::from_ptr(sys::puglGetWorldString(self.0.raw, sys::PUGL_CLASS_NAME))
                 .to_string_lossy()
                 .into_owned()
         }
@@ -102,7 +98,7 @@ impl World {
     /// Return the time in seconds
     /// This is a monotonically increasing clock with high resolution. The returned time is only useful to compare against other times returned by this function, its absolute value has no meaning.
     pub fn time(&self) -> f64 {
-        unsafe { sys::puglGetTime(self.world) }
+        unsafe { sys::puglGetTime(self.0.raw) }
     }
 
     /// Update by processing events from the window system.
@@ -113,7 +109,7 @@ impl World {
     pub fn update(&mut self, timeout: Option<Duration>) -> Result<bool, WorldError> {
         unsafe {
             let timeout = timeout.map(|d| d.as_secs_f64()).unwrap_or(-1.0);
-            match sys::puglUpdate(self.world, timeout) {
+            match sys::puglUpdate(self.0.raw, timeout) {
                 sys::PUGL_SUCCESS => Ok(true),
                 sys::PUGL_FAILURE => Ok(false),
                 _ => Err(WorldError),
@@ -122,13 +118,13 @@ impl World {
     }
 
     /// Return a pointer to the native handle of the world.
-    /// - X11: Returns a pointer to the Display.
-    /// - MacOS: Returns a pointer to the NSApplication.
-    /// - Windows: Returns the HMODULE of the calling process.
-    pub fn as_native(&self) -> NativeWorld {
+    /// - X11: A pointer to the Display.
+    /// - MacOS: A pointer to the NSApplication.
+    /// - Windows: The HMODULE of the calling process.
+    pub fn native(&self) -> NativeWorld {
         unsafe {
             NativeWorld {
-                ptr: sys::puglGetNativeWorld(self.world) as *mut c_void,
+                ptr: sys::puglGetNativeWorld(self.0.raw) as *mut c_void,
             }
         }
     }
@@ -136,15 +132,39 @@ impl World {
     /// Creates a new unrealized view with a specified backend.
     /// Available backends are:
     /// - `()` - stub backend, no drawing
+    /// - `OpenGl` - OpenGL backend, gated behind the `opengl` feature
     pub fn new_view<B: Backend>(&self, backend: B) -> UnrealizedView<B> {
-        unsafe { UnrealizedView::new(self.world, backend) }
+        unsafe { UnrealizedView::new(self.0.clone(), backend) }
     }
 }
 
-impl Drop for World {
+pub(crate) struct WorldInner {
+    pub raw: *mut sys::PuglWorld,
+}
+
+impl WorldInner {
+    pub fn wrap(world: *mut sys::PuglWorld) -> Arc<Self> {
+        unsafe {
+            let arc = Arc::new(WorldInner { raw: world });
+            sys::puglSetWorldHandle(world, Arc::as_ptr(&arc) as _);
+            arc
+        }
+    }
+
+    /// SAFETY: do not drop this arc after you're done with it!
+    pub unsafe fn from_raw(world: *mut sys::PuglWorld) -> Arc<Self> {
+        unsafe { Arc::from_raw(sys::puglGetWorldHandle(world) as *const Self) }
+    }
+
+    pub fn as_world(&self) -> &World {
+        unsafe { &*(self as *const _ as *const World) }
+    }
+}
+
+impl Drop for WorldInner {
     fn drop(&mut self) {
         unsafe {
-            sys::puglFreeWorld(self.world);
+            sys::puglFreeWorld(self.raw);
         }
     }
 }

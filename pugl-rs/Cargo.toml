@@ -7,3 +7,9 @@ edition = "2024"
 pugl-rs-sys = { path = "../pugl-rs-sys" }
 bitflags = "2.8"
 
+[features]
+opengl = ["pugl-rs-sys/opengl"]
+
+[[example]]
+name = "opengl"
+required-features = ["opengl"]

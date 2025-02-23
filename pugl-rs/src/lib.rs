@@ -9,3 +9,7 @@ pub use backend::*;
 pub use data::*;
 pub use view::*;
 pub use world::*;
+
+pub(crate) mod private {
+    pub struct Private;
+}

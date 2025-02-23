@@ -1,44 +1,69 @@
 use crate::{Backend, sys};
-use std::ptr::addr_of;
+use std::{ffi::CStr, ptr::addr_of, slice::from_raw_parts, str::from_utf8};
 
 bitflags::bitflags! {
+    /// Keyboard modifier flags.
     #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
     pub struct Modifiers: u32 {
+        /// Shift held
         const SHIFT = sys::PUGL_MOD_SHIFT;
+        /// Control held
         const CTRL = sys::PUGL_MOD_CTRL;
+        /// Alt/Option held
         const ALT = sys::PUGL_MOD_ALT;
+        /// Super/Command/Windows key held
         const SUPER = sys::PUGL_MOD_SUPER;
+        /// Num lock active
         const NUM_LOCK = sys::PUGL_MOD_NUM_LOCK;
+        /// Caps lock active
         const CAPS_LOCK = sys::PUGL_MOD_CAPS_LOCK;
+        /// Scroll lock active
         const SCROLL_LOCK = sys::PUGL_MOD_SCROLL_LOCK;
     }
 }
 
 bitflags::bitflags! {
+    /// View style flags.
     #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
     pub struct ViewStyle: u32 {
+        /// View is mapped to a real window and potentially visible
         const MAPPED = sys::PUGL_VIEW_STYLE_MAPPED;
+        /// View is modal, typically a dialog box of its transient parent
         const MODAL = sys::PUGL_VIEW_STYLE_MODAL;
+        /// View should be above most others
         const ABOVE = sys::PUGL_VIEW_STYLE_ABOVE;
+        /// View should be below most others
         const BELOW = sys::PUGL_VIEW_STYLE_BELOW;
+        /// View is minimized, shaded, or otherwise invisible
         const HIDDEN = sys::PUGL_VIEW_STYLE_HIDDEN;
+        /// View is maximized to fill the screen vertically
         const TALL = sys::PUGL_VIEW_STYLE_TALL;
+        /// View is maximized to fill the screen horizontally
         const WIDE = sys::PUGL_VIEW_STYLE_WIDE;
+        /// View is enlarged to fill the entire screen with no decorations
         const FULLSCREEN = sys::PUGL_VIEW_STYLE_FULLSCREEN;
+        /// View is currently being resized
         const RESIZING = sys::PUGL_VIEW_STYLE_RESIZING;
+        /// View is ready for input or otherwise demanding attention
         const DEMANDING = sys::PUGL_VIEW_STYLE_DEMANDING;
     }
 }
 
+/// A timer id. Used in `Event::Timer`, `View::start_timer` and `View::stop_timer`.
 pub type TimerId = usize;
 
+/// Reason for `Event::PointerIn`, `Event::PointerOut`, `Event::FocusedIn` or `Event::FocusedOut`.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum CrossingMode {
+    /// Crossing due to a normal pointer motion
     Normal,
+    /// Crossing due to a grab
     Grab,
+    /// Crossing due to a grab release
     Ungrab,
 }
 
+/// An arbitrary rectangle in (physical) pixel coordinates with top-left origin.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash, Default)]
 pub struct Rect {
     pub x: i32,
@@ -47,6 +72,7 @@ pub struct Rect {
     pub h: u32,
 }
 
+/// Mouse cursor icon. Used in `View::set_cursor`.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash, Default)]
 pub enum MouseCursor {
     #[default]
@@ -62,14 +88,19 @@ pub enum MouseCursor {
     ResizeNESW,
 }
 
+/// A view type.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash, Default)]
 pub enum ViewType {
+    /// A normal top-level window
     #[default]
     Normal,
+    /// A utility window like a palette or toolbox
     Utility,
+    /// A dialog window
     Dialog,
 }
 
+/// Mouse button. Used in `Event::ButtonPress` and `Event::ButtonRelease`.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum MouseButton {
     Left,
@@ -80,6 +111,11 @@ pub enum MouseButton {
     Other(u32),
 }
 
+/// Scroll direction.
+///
+/// Describes the direction of a `Event::Scroll` along with whether the scroll is a "smooth" scroll.
+/// The discrete directions are for devices like mouse wheels with constrained axes,
+/// while a smooth scroll is for those with arbitrary scroll direction freedom, like some touchpads.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum ScrollDirection {
     Up,
@@ -89,6 +125,10 @@ pub enum ScrollDirection {
     Smooth,
 }
 
+/// Keyboard key codepoints.
+///
+/// Applications must take care to not interpret these values beyond key detection,
+/// the mapping used here is arbitrary and specific to Pugl.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum Key {
     None,
@@ -156,20 +196,35 @@ pub enum Key {
     NumpadPageDown,
     NumpadInsert,
     NumpadDelete,
+    NumpadSeparator,
+    NumpadClear,
 }
 
+/// Event data associated with a user input event.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EventInput {
+    /// Time of the event. Use `World::time` to get the current time.
     pub time: f64,
+
+    /// X coordinate of the event in view coordinates.
     pub x: f64,
+    /// Y coordinate of the event in view coordinates.
     pub y: f64,
+
+    /// X coordinate of the event in screen coordinates.
     pub root_x: f64,
+    /// Y coordinate of the event in screen coordinates.
     pub root_y: f64,
+
+    /// Keyboard modifiers active at the time of the event.
     pub mods: Modifiers,
+
+    /// Whether the event is a hint (i.e. was not created by a _direct_ user input)
     pub hint: bool,
 }
 
-#[derive(Debug, PartialEq)]
+/// A view event.
+#[derive(Debug)]
 pub enum Event<'a, B: Backend> {
     /// View resize or move event.
     ///
@@ -182,10 +237,18 @@ pub enum Event<'a, B: Backend> {
         style: ViewStyle,
     },
 
+    /// View realize event.
+    ///
+    /// This event is sent when a view is realized before it is first displayed, with the graphics context entered.  
+    /// This is typically used for setting up the graphics system, for example by loading OpenGL extensions.
     Realize {
         backend: B::SetupContext<'a>,
     },
 
+    /// View unrealize event.
+    ///
+    /// This event is the counterpart to `Event::Realize`, and is sent when the view will no longer be displayed.  
+    /// This is typically used for tearing down the graphics system, or otherwise freeing any resources allocated when the realize event was handled.
     Unrealize {
         backend: B::SetupContext<'a>,
     },
@@ -351,7 +414,10 @@ pub enum Event<'a, B: Backend> {
     Client {
         data: [usize; 2],
     },
-    //TODO: data offer
+
+    Clipboard {
+        text: &'a str,
+    },
 }
 
 impl MouseCursor {
@@ -487,6 +553,8 @@ impl Key {
             sys::PUGL_KEY_PAD_PAGE_DOWN => Key::NumpadPageDown,
             sys::PUGL_KEY_PAD_INSERT => Key::NumpadInsert,
             sys::PUGL_KEY_PAD_DELETE => Key::NumpadDelete,
+            sys::PUGL_KEY_PAD_SEPARATOR => Key::NumpadSeparator,
+            sys::PUGL_KEY_PAD_CLEAR => Key::NumpadClear,
 
             _ => match char::from_u32(raw) {
                 Some(char) => Key::Char(char),
@@ -497,7 +565,10 @@ impl Key {
 }
 
 impl<'a, B: Backend> Event<'a, B> {
-    pub unsafe fn from_raw(view: *mut sys::PuglView, event: *const sys::PuglEvent) -> Option<Self> {
+    pub(crate) unsafe fn process(
+        view: *mut sys::PuglView,
+        event: *const sys::PuglEvent,
+    ) -> Option<Self> {
         unsafe {
             Some(match (*event).type_ {
                 sys::PUGL_REALIZE => Event::Realize {
@@ -576,7 +647,7 @@ impl<'a, B: Backend> Event<'a, B> {
                     text: {
                         let bytes = &*addr_of!((*event).text.string).cast::<[u8; 8]>();
                         let len = bytes.iter().position(|&b| b == 0).unwrap_or(8);
-                        std::str::from_utf8(&bytes[..len]).ok()?
+                        from_utf8(&bytes[..len]).ok()?
                     },
                 },
                 sys::PUGL_POINTER_IN => Event::PointerEnter {
@@ -660,6 +731,32 @@ impl<'a, B: Backend> Event<'a, B> {
                 sys::PUGL_TIMER => Event::Timer {
                     id: (*event).timer.id,
                 },
+
+                sys::PUGL_DATA_OFFER => {
+                    let num_types = sys::puglGetNumClipboardTypes(view);
+                    for i in 0..num_types {
+                        let type_ = sys::puglGetClipboardType(view, i);
+                        if CStr::from_ptr(type_).to_str() == Ok("text/plain") {
+                            sys::puglAcceptOffer(view, &(*event).offer, i);
+                        }
+                    }
+
+                    return None;
+                }
+
+                sys::PUGL_DATA => {
+                    let type_ = sys::puglGetClipboardType(view, (*event).data.typeIndex);
+                    if CStr::from_ptr(type_).to_str() == Ok("text/plain") {
+                        let mut len = 0;
+                        let data = sys::puglGetClipboard(view, (*event).data.typeIndex, &mut len);
+                        if !data.is_null() {
+                            let text = from_utf8(from_raw_parts(data as *const u8, len)).ok()?;
+                            return Some(Event::Clipboard { text });
+                        }
+                    }
+
+                    return None;
+                }
 
                 _ => return None,
             })

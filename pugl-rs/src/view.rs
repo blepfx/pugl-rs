@@ -1,21 +1,34 @@
-use crate::{Backend, Event, MouseCursor, Rect, TimerId, ViewStyle, ViewType, World, sys};
-use std::{ffi::CString, marker::PhantomData, mem::forget, ptr::null_mut, time::Duration};
+use crate::{
+    Backend, Event, MouseCursor, Rect, TimerId, ViewStyle, ViewType, World, WorldInner, sys,
+};
+use std::{
+    ffi::CString,
+    fmt,
+    marker::PhantomData,
+    mem::ManuallyDrop,
+    ptr::null_mut,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 /// A view is a drawable area that can receive input events.
-/// This struct represents a view that has yet to be "realized" (i.e. created for the underlying OS windowing system).
+///
+/// This struct represents a view that is yet to be "realized" (i.e. created on the underlying OS windowing system).
 pub struct UnrealizedView<B: Backend>(View<B>);
 
 /// A view is a drawable area that can receive input events.
-/// This struct represents a view that has been "realized" (i.e. created for the underlying OS windowing system).
+///
+/// This struct represents a view that has been "realized" (i.e. created on the underlying OS windowing system).
 pub struct View<B: Backend> {
     pub(crate) view: *mut sys::PuglView,
-    pub(crate) world: *mut sys::PuglWorld,
+    pub(crate) world: Arc<WorldInner>,
     pub(crate) phantom: PhantomData<B>,
 }
 
 /// Represents a parent window for a view.
+///
 /// A view can either have a parent (for embedding) or a transient parent (for top-level windows like dialogs), but not both.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ViewParent {
     Embedding(NativeView),
     Transient(NativeView),
@@ -25,16 +38,20 @@ pub enum ViewParent {
 /// - X11: This is a `Window`.
 /// - MacOS: This is a pointer to an `NSView`.
 /// - Windows: This is a `HWND`.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(transparent)]
 pub struct NativeView {
     ptr: sys::PuglNativeView,
 }
 
 impl NativeView {
+    /// Returns the underlying OS window handle
     pub fn as_raw(&self) -> usize {
         self.ptr
     }
 
+    /// Constructs a `NativeView` from a raw window handle.
+    /// It is assumed that the handle is valid.
     pub unsafe fn from_raw(ptr: usize) -> Self {
         Self { ptr }
     }
@@ -51,37 +68,9 @@ unsafe impl<B: Backend> Send for UnrealizedView<B> {}
 unsafe impl<B: Backend> Sync for UnrealizedView<B> {}
 
 impl<B: Backend> UnrealizedView<B> {
-    pub(crate) unsafe fn new(world: *mut sys::PuglWorld, backend: B) -> Self {
-        unsafe extern "C" fn event_handler<B: Backend>(
-            view: *mut sys::PuglView,
-            raw: *const sys::PuglEvent,
-        ) -> sys::PuglStatus {
-            unsafe {
-                if let Some(event) = Event::<B>::from_raw(view, raw) {
-                    let handle = sys::puglGetHandle(view);
-                    if !handle.is_null() {
-                        let handler = &mut *(handle as *mut EventHandler<B>);
-                        let view = View {
-                            view,
-                            world: sys::puglGetWorld(view),
-                            phantom: PhantomData,
-                        };
-
-                        handler(&view, event);
-                        forget(view);
-
-                        if (*raw).type_ == sys::PUGL_UNREALIZE {
-                            drop(Box::from_raw(handle as *mut EventHandler<B>));
-                        }
-                    }
-                }
-
-                sys::PUGL_SUCCESS
-            }
-        }
-
+    pub(crate) unsafe fn new(world: Arc<WorldInner>, backend: B) -> Self {
         unsafe {
-            let view = sys::puglNewView(world);
+            let view = sys::puglNewView(world.raw);
             assert!(!view.is_null(), "failed to allocate view");
             sys::puglSetEventFunc(view, Some(event_handler::<B>));
             sys::puglSetHandle(view, null_mut());
@@ -214,7 +203,7 @@ impl<B: Backend> UnrealizedView<B> {
                 drop(Box::from_raw(old as *mut EventHandler<B>));
             }
 
-            let event: Box<EventHandler<B>> = Box::new(Box::new(event));
+            let event: Box<EventHandler<B>> = Box::new(Mutex::new(Box::new(event)));
             sys::puglSetHandle(self.0.view, Box::into_raw(event) as *mut _);
         }
         self
@@ -245,25 +234,27 @@ impl<B: Backend> UnrealizedView<B> {
     /// Realize the view
     ///
     /// Realize a view by creating a corresponding system view or window.
-    /// After this call, the (initially invisible) underlying system view exists and can be accessed with puglGetNativeView().
+    /// After this call, the (initially invisible) underlying system view exists and can be accessed with `View::as_native`.
     /// The view should be fully configured using the above functions before this is called. This function may only be called once per view.
     ///
     /// The view will be kept alive as long as the `View` instance is not dropped
-    pub fn realize(self) -> Result<View<B>, ViewRealizeError> {
+    pub fn realize(self) -> Result<View<B>, ViewError> {
         unsafe {
-            match sys::puglRealize(self.0.view) {
-                sys::PUGL_SUCCESS => Ok(self.0),
+            let error = match sys::puglRealize(self.0.view) {
+                sys::PUGL_SUCCESS => return Ok(self.0),
 
-                sys::PUGL_BAD_CONFIGURATION => Err(ViewRealizeError::BadConfig),
-                sys::PUGL_BAD_BACKEND => Err(ViewRealizeError::BadBackend),
-                sys::PUGL_BACKEND_FAILED => Err(ViewRealizeError::BackendInit),
-                sys::PUGL_REGISTRATION_FAILED => Err(ViewRealizeError::ClassRegister),
-                sys::PUGL_REALIZE_FAILED => Err(ViewRealizeError::OsRealize),
-                sys::PUGL_CREATE_CONTEXT_FAILED => Err(ViewRealizeError::CreateContext),
-                sys::PUGL_SET_FORMAT_FAILED => Err(ViewRealizeError::SetPixelFormat),
-                sys::PUGL_NO_MEMORY => Err(ViewRealizeError::OutOfMemory),
-                _ => Err(ViewRealizeError::Unknown),
-            }
+                sys::PUGL_BAD_CONFIGURATION => ViewError::BadConfig,
+                sys::PUGL_BAD_BACKEND => ViewError::BadBackend,
+                sys::PUGL_BACKEND_FAILED => ViewError::BackendInit,
+                sys::PUGL_REGISTRATION_FAILED => ViewError::ClassRegister,
+                sys::PUGL_REALIZE_FAILED => ViewError::OsRealize,
+                sys::PUGL_CREATE_CONTEXT_FAILED => ViewError::CreateContext,
+                sys::PUGL_SET_FORMAT_FAILED => ViewError::SetPixelFormat,
+                sys::PUGL_NO_MEMORY => ViewError::OutOfMemory,
+                _ => ViewError::Unknown,
+            };
+
+            Err(error)
         }
     }
 }
@@ -299,8 +290,8 @@ impl<B: Backend> View<B> {
             // workaround for not being able to resize the view when it's not marked as resizable
             if sys::puglGetViewHint(self.view, sys::PUGL_RESIZABLE) == 0 {
                 sys::puglSetViewHint(self.view, sys::PUGL_RESIZABLE, 1);
-                self.set_min_size(width, height);
-                self.set_max_size(width, height);
+                sys::puglSetSizeHint(self.view, sys::PUGL_MAX_SIZE, width, height);
+                sys::puglSetSizeHint(self.view, sys::PUGL_MIN_SIZE, width, height);
                 let result = sys::puglSetSizeHint(self.view, sys::PUGL_CURRENT_SIZE, width, height)
                     == sys::PUGL_SUCCESS;
                 sys::puglSetViewHint(self.view, sys::PUGL_RESIZABLE, 0);
@@ -384,6 +375,18 @@ impl<B: Backend> View<B> {
         }
     }
 
+    /// Send a close event to the event handler.
+    pub fn send_close_event(&self) -> bool {
+        unsafe {
+            sys::puglSendEvent(self.view, &sys::PuglEvent {
+                any: sys::PuglAnyEvent {
+                    type_: sys::PUGL_CLOSE,
+                    flags: sys::PUGL_IS_SEND_EVENT,
+                },
+            }) == sys::PUGL_SUCCESS
+        }
+    }
+
     /// Raise the window to the top of the application's stack.
     ///
     /// This is the normal "well-behaved" way to show and raise the window, which should be used in most cases.
@@ -405,7 +408,9 @@ impl<B: Backend> View<B> {
         unsafe { sys::puglShow(self.view, sys::PUGL_SHOW_FORCE_RAISE) == sys::PUGL_SUCCESS }
     }
 
-    /// Hide the current window
+    /// Hide the current window.
+    ///
+    /// This will hide the window, but not destroy it. The window can be shown again with `show()`, `show_passive()` or `show_aggressive()`.
     pub fn hide(&self) {
         unsafe {
             sys::puglHide(self.view);
@@ -462,7 +467,7 @@ impl<B: Backend> View<B> {
 
     /// Returns the associated world instance
     pub fn world(&self) -> &World {
-        World::from_inner(&self.world)
+        self.world.as_world()
     }
 
     /// Return the parent window this view, if any
@@ -483,7 +488,7 @@ impl<B: Backend> View<B> {
     }
 
     /// Returns the native window handle
-    pub fn as_native(&self) -> NativeView {
+    pub fn native(&self) -> NativeView {
         unsafe {
             NativeView {
                 ptr: sys::puglGetNativeView(self.view),
@@ -521,6 +526,37 @@ impl<B: Backend> View<B> {
     pub fn system_scale(&self) -> f64 {
         unsafe { sys::puglGetScaleFactor(self.view) }
     }
+
+    /// Set the clipboard contents.
+    ///
+    /// This sets the system clipboard contents, which can be retrieved with `View::paste_clipboard` or pasted into other applications.
+    ///
+    /// For now only text data is supported by the `pugl-rs` (and `pugl` itself supports only text data on windows)
+    pub fn copy_clipboard(&self, string: &str) -> bool {
+        unsafe {
+            sys::puglSetClipboard(
+                self.view,
+                c"text/plain".as_ptr(),
+                string.as_ptr() as _,
+                string.len(),
+            ) == sys::PUGL_SUCCESS
+        }
+    }
+
+    /// Get the clipboard contents.
+    pub fn paste_clipboard(&self) -> bool {
+        unsafe { sys::puglPaste(self.view) == sys::PUGL_SUCCESS }
+    }
+
+    unsafe fn from_raw(view: *mut sys::PuglView) -> ManuallyDrop<View<B>> {
+        unsafe {
+            ManuallyDrop::new(Self {
+                view,
+                world: WorldInner::from_raw(sys::puglGetWorld(view)),
+                phantom: PhantomData,
+            })
+        }
+    }
 }
 
 impl<B: Backend> Drop for View<B> {
@@ -532,21 +568,30 @@ impl<B: Backend> Drop for View<B> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ViewRealizeError {
+pub enum ViewError {
+    /// Invalid view configuration
     BadConfig,
+    /// Invalid or missing backend
     BadBackend,
+    /// Backend initialization failed
     BackendInit,
+    /// System class registration failed
     ClassRegister,
+    /// System view realization failed
     OsRealize,
+    /// Failed to create drawing context
     CreateContext,
+    /// Failed to set pixel format
     SetPixelFormat,
+    /// Failed to allocate memory
     OutOfMemory,
+    /// Unknown error
     Unknown,
 }
 
-impl std::error::Error for ViewRealizeError {}
-impl std::fmt::Display for ViewRealizeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl std::error::Error for ViewError {}
+impl fmt::Display for ViewError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::BackendInit => write!(f, "backend initialization failed"),
             Self::BadBackend => write!(f, "invalid backend"),
@@ -561,5 +606,53 @@ impl std::fmt::Display for ViewRealizeError {
     }
 }
 
+impl<B: Backend> fmt::Debug for View<B> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("View")
+            .field("style", &self.style())
+            .field("visible", &self.is_visible())
+            .field("position", &self.position())
+            .field("size", &self.size())
+            .field("title", &self.title())
+            .field("parent", &self.parent())
+            .field("native", &self.native())
+            .field("system_scale", &self.system_scale())
+            .finish()
+    }
+}
+
+impl<B: Backend> fmt::Debug for UnrealizedView<B> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("UnrealizedView")
+            .field("title", &self.title())
+            .field("parent", &self.parent())
+            .field("system_scale", &self.system_scale())
+            .finish()
+    }
+}
+
 /// double boxing to make it ffi safe :c
-type EventHandler<B> = Box<dyn FnMut(&View<B>, Event<B>) + Send>;
+type EventHandler<B> = Mutex<Box<dyn FnMut(&View<B>, Event<B>) + Send>>;
+
+unsafe extern "C" fn event_handler<B: Backend>(
+    view: *mut sys::PuglView,
+    raw: *const sys::PuglEvent,
+) -> sys::PuglStatus {
+    unsafe {
+        if let Some(event) = Event::<B>::process(view, raw) {
+            let handle = sys::puglGetHandle(view);
+            if !handle.is_null() {
+                let handler = &mut *(handle as *mut EventHandler<B>);
+                let view = View::from_raw(view);
+
+                handler.lock().unwrap()(&view, event);
+
+                if (*raw).type_ == sys::PUGL_UNREALIZE {
+                    drop(Box::from_raw(handle as *mut EventHandler<B>));
+                }
+            }
+        }
+
+        sys::PUGL_SUCCESS
+    }
+}

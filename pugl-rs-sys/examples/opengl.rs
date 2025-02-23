@@ -1,4 +1,4 @@
-use pugl_sys::*;
+use pugl_rs_sys::*;
 use std::ffi::{CStr, CString};
 
 extern "C" fn event_handler(view: *mut PuglView, event: *const PuglEvent) -> PuglStatus {
@@ -25,6 +25,10 @@ extern "C" fn event_handler(view: *mut PuglView, event: *const PuglEvent) -> Pug
 
             gl_clear_color(1.0, 1.0, 0.0, 1.0);
             gl_clear(0x4000);
+        }
+
+        if (*event).type_ != PUGL_EXPOSE && (*event).type_ != PUGL_UPDATE {
+            println!("{:?}", (*event).type_);
         }
 
         // Handle events here
