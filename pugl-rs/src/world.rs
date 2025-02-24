@@ -1,9 +1,7 @@
 use crate::{Backend, UnrealizedView, sys};
 use std::{ffi::CStr, os::raw::c_void, sync::Arc, time::Duration};
 
-/// World creation error.
-///
-/// Usually happens due to a memory allocation failure.
+/// World creation/update error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WorldError;
 

@@ -244,7 +244,6 @@ impl<B: Backend> UnrealizedView<B> {
         unsafe {
             let error = match sys::puglRealize(self.0.view) {
                 sys::PUGL_SUCCESS => return Ok(self.0),
-
                 sys::PUGL_BAD_CONFIGURATION => ViewError::BadConfig,
                 sys::PUGL_BAD_BACKEND => ViewError::BadBackend,
                 sys::PUGL_BACKEND_FAILED => ViewError::BackendInit,
