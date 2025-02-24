@@ -30,6 +30,19 @@ goals and priorities:
    and/or static linking.  Pugl can be installed as a library, or used by
    simply copying the implementation into a project.
 
+## Status
+
+Current `pugl` version is `0.5.5` (commit [66afe80](https://github.com/lv2/pugl/commit/66afe808e8c17f41cf6122158df96361cb42cccb))
+
+At the moment most of the `pugl` functions are documented and available, except for:
+- non-text clipboard handing
+- Cairo and Vulkan backends (feel free to ask me if you need them!)
+
+The bindings are tested on Linux, Windows and OSX (VM):
+  - `pugl` links and builds successfully, stub backend works
+  - OpenGL works on Linux and Windows (builds successfully on OSX, unable to verify if it actually works)
+
+This project is WIP. Use at your own risk!
 
 ## Installation
 
