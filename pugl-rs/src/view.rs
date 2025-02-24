@@ -11,12 +11,12 @@ use std::{
     time::Duration,
 };
 
-/// A view is a drawable area that can receive input events.
+/// A view that is not yet realized.
 ///
 /// This struct represents a view that is yet to be "realized" (i.e. created on the underlying OS windowing system).
 pub struct UnrealizedView<B: Backend>(View<B>);
 
-/// A view is a drawable area that can receive input events.
+/// A drawable area that can receive input events.
 ///
 /// This struct represents a view that has been "realized" (i.e. created on the underlying OS windowing system).
 pub struct View<B: Backend> {
@@ -83,7 +83,7 @@ impl<B: Backend> UnrealizedView<B> {
         }
     }
 
-    /// Set the type of the view. See the docs for `ViewType` for more info.
+    /// Set the type of the view. See the docs for [`ViewType`] for more info.
     pub fn with_view_type(self, ty: ViewType) -> Self {
         unsafe {
             sys::puglSetViewHint(self.0.view, sys::PUGL_VIEW_TYPE, ty.into_raw() as _);
@@ -225,8 +225,10 @@ impl<B: Backend> UnrealizedView<B> {
     }
 
     /// Return the scale factor of the view.
+    ///
     /// This factor describe how large UI elements (especially text) should be compared to "normal". For example, 2.0 means the UI should be drawn twice as large.
-    /// "Normal" is loosely defined, but means a good size on a "standard DPI" display (around 96 DPI). In other words, the scale 1.0 should have text that is reasonably sized on a 96 DPI display, and the scale 2.0 should have text twice that large.
+    /// "Normal" is loosely defined, but means a good size on a "standard DPI" display (around 96 DPI).
+    /// In other words, the scale 1.0 should have text that is reasonably sized on a 96 DPI display, and the scale 2.0 should have text twice that large.
     pub fn system_scale(&self) -> f64 {
         self.0.system_scale()
     }
@@ -234,10 +236,10 @@ impl<B: Backend> UnrealizedView<B> {
     /// Realize the view
     ///
     /// Realize a view by creating a corresponding system view or window.
-    /// After this call, the (initially invisible) underlying system view exists and can be accessed with `View::as_native`.
+    /// After this call, the (initially invisible) underlying system view exists and can be accessed with [`View::native`].
     /// The view should be fully configured using the above functions before this is called. This function may only be called once per view.
     ///
-    /// The view will be kept alive as long as the `View` instance is not dropped
+    /// The view will be kept alive as long as the [`View`] instance is not dropped
     pub fn realize(self) -> Result<View<B>, ViewError> {
         unsafe {
             let error = match sys::puglRealize(self.0.view) {
@@ -334,15 +336,17 @@ impl<B: Backend> View<B> {
 
     /// Set a view state, if supported by the system.
     ///
-    /// This can be used to manipulate the window into various special states, but note that not all states are supported on all systems. This function may return failure or an error if the platform implementation doesn't "understand" how to set the given style, but the return value here can't be used to determine if the state has actually been set. Any changes to the actual state of the view will arrive in later configure events.
+    /// This can be used to manipulate the window into various special states, but note that not all states are supported on all systems.
+    /// This function may return failure or an error if the platform implementation doesn't "understand" how to set the given style, but the return value here can't be used to determine if the state has actually been set.
+    /// Any changes to the actual state of the view will arrive in later configure events.
     pub fn set_style(&self, style: ViewStyle) -> bool {
         unsafe { sys::puglSetViewStyle(self.view, style.bits()) == sys::PUGL_SUCCESS }
     }
 
     /// Activate a repeating timer event.
     ///
-    /// This starts a timer which will send a `Timer` to view every `timeout` seconds.
-    /// This can be used to perform some action in a view at a regular interval with relatively low frequency. Note that the frequency of timer events may be limited by how often `World::update()` is called.
+    /// This starts a timer which will send a [`Event::Timer`] event to view every `timeout` seconds.
+    /// This can be used to perform some action in a view at a regular interval with relatively low frequency. Note that the frequency of timer events may be limited by how often [`World::update`] is called.
     /// If the given timer already exists, it is replaced.
     /// ### ID
     /// There is a platform-specific limit to the number of supported timers, and overhead associated with each, so applications should create only a few timers and perform several tasks in one if necessary.
@@ -403,7 +407,8 @@ impl<B: Backend> View<B> {
 
     /// Aggressively force the window to be raised to the top.
     ///
-    /// This will attempt to raise the window to the top, even if this isn't the active application, or if doing so would otherwise go against the platform's guidelines. This generally shouldn't be used, and isn't guaranteed to work. On modern Windows systems, the active application must explicitly grant permission for others to steal the foreground from it.
+    /// This will attempt to raise the window to the top, even if this isn't the active application, or if doing so would otherwise go against the platform's guidelines.
+    /// This generally shouldn't be used, and isn't guaranteed to work. On modern Windows systems, the active application must explicitly grant permission for others to steal the foreground from it.
     pub fn show_aggressive(&self) -> bool {
         unsafe { sys::puglShow(self.view, sys::PUGL_SHOW_FORCE_RAISE) == sys::PUGL_SUCCESS }
     }
@@ -419,7 +424,8 @@ impl<B: Backend> View<B> {
 
     /// Request a redisplay for the entire view.
     ///
-    /// This will cause an expose event to be dispatched later. If called from within the event handler, the expose should arrive at the end of the current event loop iteration, though this is not strictly guaranteed on all platforms. If called elsewhere, an expose will be enqueued to be processed in the next event loop iteration.
+    /// This will cause an expose event to be dispatched later. If called from within the event handler, the expose should arrive at the end of the current event loop iteration, though this is not strictly guaranteed on all platforms.
+    /// If called elsewhere, an expose will be enqueued to be processed in the next event loop iteration.
     pub fn obscure_view(&self) {
         unsafe {
             sys::puglObscureView(self.view);
@@ -428,7 +434,8 @@ impl<B: Backend> View<B> {
 
     /// "Obscure" a region so it will be exposed in the next render.
     ///
-    /// This will cause an expose event to be dispatched later. If called from within the event handler, the expose should arrive at the end of the current event loop iteration, though this is not strictly guaranteed on all platforms. If called elsewhere, an expose will be enqueued to be processed in the next event loop iteration.
+    /// This will cause an expose event to be dispatched later. If called from within the event handler, the expose should arrive at the end of the current event loop iteration, though this is not strictly guaranteed on all platforms.
+    /// If called elsewhere, an expose will be enqueued to be processed in the next event loop iteration.
     /// The region is clamped to the size of the view if necessary.
     pub fn obscure_region(&self, rect: Rect) {
         unsafe {
@@ -437,6 +444,7 @@ impl<B: Backend> View<B> {
     }
 
     /// Grab the keyboard input focus.
+    ///
     /// Note that this will fail if the view is not mapped and so should not, for example, be called immediately after show().
     pub fn grab_focus(&self) {
         unsafe {
@@ -521,15 +529,18 @@ impl<B: Backend> View<B> {
     }
 
     /// Return the scale factor of the view.
-    /// This factor describe how large UI elements (especially text) should be compared to "normal". For example, 2.0 means the UI should be drawn twice as large.
-    /// "Normal" is loosely defined, but means a good size on a "standard DPI" display (around 96 DPI). In other words, the scale 1.0 should have text that is reasonably sized on a 96 DPI display, and the scale 2.0 should have text twice that large.
+    ///
+    /// This factor describe how large UI elements (especially text) should be compared to "normal".
+    /// For example, 2.0 means the UI should be drawn twice as large.
+    /// "Normal" is loosely defined, but means a good size on a "standard DPI" display (around 96 DPI).
+    /// In other words, the scale 1.0 should have text that is reasonably sized on a 96 DPI display, and the scale 2.0 should have text twice that large.
     pub fn system_scale(&self) -> f64 {
         unsafe { sys::puglGetScaleFactor(self.view) }
     }
 
     /// Set the clipboard contents.
     ///
-    /// This sets the system clipboard contents, which can be retrieved with `View::paste_clipboard` or pasted into other applications.
+    /// This sets the system clipboard contents, which can be retrieved with [`View::paste_clipboard`] or pasted into other applications.
     ///
     /// For now only text data is supported by the `pugl-rs` (and `pugl` itself supports only text data on windows)
     pub fn copy_clipboard(&self, string: &str) -> bool {
@@ -567,6 +578,7 @@ impl<B: Backend> Drop for View<B> {
     }
 }
 
+/// View realization error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewError {
     /// Invalid view configuration

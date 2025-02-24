@@ -1,8 +1,12 @@
 use crate::{Backend, UnrealizedView, sys};
 use std::{ffi::CStr, os::raw::c_void, sync::Arc, time::Duration};
 
+/// World creation error.
+///
+/// Usually happens due to a memory allocation failure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WorldError;
+
 impl std::error::Error for WorldError {}
 impl std::fmt::Display for WorldError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -10,10 +14,11 @@ impl std::fmt::Display for WorldError {
     }
 }
 
-/// The "world" of application state.
+/// The entry point of a Pugl application.
 ///
 /// The world represents everything that is not associated with a particular view.
-/// Several worlds can be created in a single process, but code using different worlds must be isolated so they are never mixed.
+/// Several worlds can be created in a single process,
+/// but code using different worlds must be isolated so they are never mixed.
 /// Views are strongly associated with the world they were created in.
 #[repr(transparent)]
 pub struct World(Arc<WorldInner>);
@@ -22,9 +27,9 @@ unsafe impl Send for World {}
 unsafe impl Sync for World {}
 
 ///A pointer to the native handle of the world.
-/// - X11: Returns a pointer to the Display.
-/// - MacOS: Returns a pointer to the NSApplication.
-/// - Windows: Returns the HMODULE of the calling process.
+/// - X11: A pointer to the `Display`.
+/// - MacOS: A pointer to the `NSApplication`.
+/// - Windows: The `HMODULE` of the calling process.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct NativeWorld {
@@ -47,7 +52,9 @@ unsafe impl Send for NativeWorld {}
 unsafe impl Sync for NativeWorld {}
 
 impl World {
-    /// Create a new world in a `PROGRAM` mode. Used for top-level applications.
+    /// Create a new world in a `PROGRAM` mode.
+    ///
+    /// Used for top-level applications.
     pub fn new_program() -> Result<Self, WorldError> {
         unsafe {
             let world = sys::puglNewWorld(sys::PUGL_PROGRAM, 0);
@@ -59,7 +66,9 @@ impl World {
         }
     }
 
-    /// Create a new world in a `MODULE` mode. Used for plugins or modules within a larger applications.
+    /// Create a new world in a `MODULE` mode.
+    ///
+    /// Used for plugins or modules within a larger applications.
     pub fn new_module() -> Result<Self, WorldError> {
         unsafe {
             let world = sys::puglNewWorld(sys::PUGL_MODULE, sys::PUGL_WORLD_THREADS);
@@ -73,7 +82,8 @@ impl World {
 
     /// Sets the application class name.
     ///
-    /// This is a stable identifier for the application, which should be a short camel-case name like "MyApp". This should be the same for every instance of the application, but different from any other application. On X11 and Windows, it is used to set the class name of windows (that underlie realized views), which is used for things like loading configuration, or custom window management rules.
+    /// This is a stable identifier for the application, which should be a short camel-case name like "MyApp". This should be the same for every instance of the application, but different from any other application.
+    /// On X11 and Windows, it is used to set the class name of windows (that underlie realized views), which is used for things like loading configuration, or custom window management rules.
     pub fn with_class_name(self, string: &str) -> Self {
         unsafe {
             sys::puglSetWorldString(
@@ -86,7 +96,8 @@ impl World {
     }
 
     /// Gets the class name of the application.
-    /// See `with_class_name` for more information.
+    ///
+    /// See [`World::with_class_name`] for more information.
     pub fn class_name(&self) -> String {
         unsafe {
             CStr::from_ptr(sys::puglGetWorldString(self.0.raw, sys::PUGL_CLASS_NAME))
@@ -96,6 +107,7 @@ impl World {
     }
 
     /// Return the time in seconds
+    ///
     /// This is a monotonically increasing clock with high resolution. The returned time is only useful to compare against other times returned by this function, its absolute value has no meaning.
     pub fn time(&self) -> f64 {
         unsafe { sys::puglGetTime(self.0.raw) }
@@ -118,9 +130,8 @@ impl World {
     }
 
     /// Return a pointer to the native handle of the world.
-    /// - X11: A pointer to the Display.
-    /// - MacOS: A pointer to the NSApplication.
-    /// - Windows: The HMODULE of the calling process.
+    ///
+    /// See [`NativeWorld`] for more info.
     pub fn native(&self) -> NativeWorld {
         unsafe {
             NativeWorld {
@@ -130,9 +141,8 @@ impl World {
     }
 
     /// Creates a new unrealized view with a specified backend.
-    /// Available backends are:
-    /// - `()` - stub backend, no drawing
-    /// - `OpenGl` - OpenGL backend, gated behind the `opengl` feature
+    ///
+    /// See [`Backend`] for more info.
     pub fn new_view<B: Backend>(&self, backend: B) -> UnrealizedView<B> {
         unsafe { UnrealizedView::new(self.0.clone(), backend) }
     }

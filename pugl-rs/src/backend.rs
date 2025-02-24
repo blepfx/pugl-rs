@@ -1,16 +1,30 @@
 use crate::sys;
 
+/// Represents a graphics backend for a view.
+///
+/// Available backends are:
+/// - `()` - stub backend, no drawing
+/// - `OpenGl` - OpenGL backend, gated behind the `opengl` feature
 pub trait Backend: std::fmt::Debug {
+    /// The context used for drawing on the view. Can be accessed via `Event::Expose`.
     type DrawContext<'a>: std::fmt::Debug;
+
+    /// The context used for setting up the view.
+    ///
+    /// No drawing operations are allowed inside the setup context scope.
+    /// This context can only be used for backend resource creation or deletion.
     type SetupContext<'a>: std::fmt::Debug;
 
+    #[doc(hidden)]
     unsafe fn install(self, view: *mut sys::PuglView, _: crate::private::Private);
 
+    #[doc(hidden)]
     unsafe fn setup<'a>(
         view: *mut sys::PuglView,
         _: crate::private::Private,
     ) -> Self::SetupContext<'a>;
 
+    #[doc(hidden)]
     unsafe fn draw<'a>(
         view: *mut sys::PuglView,
         _: crate::private::Private,

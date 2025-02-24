@@ -1,6 +1,10 @@
 use crate::{Backend, sys};
 use std::{ffi::CStr, ptr::addr_of, slice::from_raw_parts, str::from_utf8};
 
+// doc only import
+#[allow(unused_imports)]
+use crate::{View, World};
+
 bitflags::bitflags! {
     /// Keyboard modifier flags.
     #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -49,10 +53,18 @@ bitflags::bitflags! {
     }
 }
 
-/// A timer id. Used in `Event::Timer`, `View::start_timer` and `View::stop_timer`.
+/// An application-specific timer identifier.
+///
+/// Used in [`Event::Timer`], [`View::start_timer`] and [`View::stop_timer`].
+///
+/// There is a platform-specific limit to the number of supported timers, and overhead associated with each,
+/// so applications should create only a few timers and perform several tasks in one if necessary.
+///
+/// The `TimerId` is the application-specific ID given to [`View::start_timer`] which distinguishes this timer from others.  
+/// It should always be checked in the event handler, even in applications that register only one timer.
 pub type TimerId = usize;
 
-/// Reason for `Event::PointerIn`, `Event::PointerOut`, `Event::FocusedIn` or `Event::FocusedOut`.
+/// Reason for [`Event::PointerIn`], [`Event::PointerOut`], [`Event::FocusIn`] or [`Event::FocusOut`].
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum CrossingMode {
     /// Crossing due to a normal pointer motion
@@ -72,7 +84,9 @@ pub struct Rect {
     pub h: u32,
 }
 
-/// Mouse cursor icon. Used in `View::set_cursor`.
+/// Mouse cursor icon.
+///
+/// Used in [`View::set_cursor`].
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash, Default)]
 pub enum MouseCursor {
     #[default]
@@ -100,7 +114,9 @@ pub enum ViewType {
     Dialog,
 }
 
-/// Mouse button. Used in `Event::ButtonPress` and `Event::ButtonRelease`.
+/// Mouse button.
+///
+/// Used in [`Event::ButtonPress`] and [`Event::ButtonRelease`].
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum MouseButton {
     Left,
@@ -113,7 +129,7 @@ pub enum MouseButton {
 
 /// Scroll direction.
 ///
-/// Describes the direction of a `Event::Scroll` along with whether the scroll is a "smooth" scroll.
+/// Describes the direction of a [`Event::Scroll`] along with whether the scroll is a "smooth" scroll.
 /// The discrete directions are for devices like mouse wheels with constrained axes,
 /// while a smooth scroll is for those with arbitrary scroll direction freedom, like some touchpads.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
@@ -203,7 +219,7 @@ pub enum Key {
 /// Event data associated with a user input event.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EventInput {
-    /// Time of the event. Use `World::time` to get the current time.
+    /// Time of the event. Use [`World::time`] to get the current time.
     pub time: f64,
 
     /// X coordinate of the event in view coordinates.
@@ -232,26 +248,19 @@ pub enum Event<'a, B: Backend> {
     /// When a configure event is received, the graphics context is active but not set up for drawing.  
     /// For example, it is valid to adjust the OpenGL viewport or otherwise configure the context,
     /// but not to draw anything.
-    Configure {
-        rect: Rect,
-        style: ViewStyle,
-    },
+    Configure { rect: Rect, style: ViewStyle },
 
     /// View realize event.
     ///
     /// This event is sent when a view is realized before it is first displayed, with the graphics context entered.  
     /// This is typically used for setting up the graphics system, for example by loading OpenGL extensions.
-    Realize {
-        backend: B::SetupContext<'a>,
-    },
+    Realize { backend: B::SetupContext<'a> },
 
     /// View unrealize event.
     ///
-    /// This event is the counterpart to `Event::Realize`, and is sent when the view will no longer be displayed.  
+    /// This event is the counterpart to [`Event::Realize`], and is sent when the view will no longer be displayed.  
     /// This is typically used for tearing down the graphics system, or otherwise freeing any resources allocated when the realize event was handled.
-    Unrealize {
-        backend: B::SetupContext<'a>,
-    },
+    Unrealize { backend: B::SetupContext<'a> },
 
     /// Recursive loop enter event.
     ///
@@ -277,7 +286,7 @@ pub enum Event<'a, B: Backend> {
 
     /// View update event.
     /// This event is sent to every view near the end of a main loop iteration when any pending exposures are about to be redrawn.  
-    /// It is typically used to mark regions to expose with `View::obscure_view` or `View::obscure_region`.  
+    /// It is typically used to mark regions to expose with [`View::obscure_view`] or [`View::obscure_region`].  
     /// For example, to continuously animate, obscure the view when an update event is received, and it will receive an expose event shortly afterwards.
     Update,
 
@@ -294,17 +303,13 @@ pub enum Event<'a, B: Backend> {
     ///
     /// This event is sent whenever the view gains the keyboard focus.  
     /// The view with the keyboard focus will receive any key press or release events.
-    FocusIn {
-        mode: CrossingMode,
-    },
+    FocusIn { mode: CrossingMode },
 
     /// Keyboard focus event.
     ///
     /// This event is sent whenever the view loses the keyboard focus.
     /// The view with the keyboard focus will receive any key press or release events.
-    FocusOut {
-        mode: CrossingMode,
-    },
+    FocusOut { mode: CrossingMode },
 
     /// Key press event.
     ///
@@ -356,7 +361,7 @@ pub enum Event<'a, B: Backend> {
     ///
     /// This event is sent when the pointer enters the view.  
     /// This can happen for several reasons, as described by the `mode` field.
-    PointerEnter {
+    PointerIn {
         input: EventInput,
         mode: CrossingMode,
     },
@@ -365,15 +370,13 @@ pub enum Event<'a, B: Backend> {
     ///
     /// This event is sent when the pointer leaves the view.
     /// This can happen for several reasons, as described by the `mode` field.
-    PointerLeave {
+    PointerOut {
         input: EventInput,
         mode: CrossingMode,
     },
 
     /// Pointer motion event.
-    PointerMotion {
-        input: EventInput,
-    },
+    PointerMotion { input: EventInput },
 
     /// Button press event.
     ButtonPress {
@@ -401,23 +404,20 @@ pub enum Event<'a, B: Backend> {
 
     /// Timer event.
     ///
-    /// This event is sent at the regular interval specified in the call to `View::start_timer` that activated it.
-    /// The `id` is the application-specific ID given to `View::start_timer` which distinguishes this timer from others.  
+    /// This event is sent at the regular interval specified in the call to [`View::start_timer`] that activated it.
+    /// The `id` is the application-specific ID given to [`View::start_timer`] which distinguishes this timer from others.  
     /// It should always be checked in the event handler, even in applications that register only one timer.
-    Timer {
-        id: TimerId,
-    },
+    Timer { id: TimerId },
 
     /// A custom client event.
     ///
-    /// See `View::send_client_event` for more info.
-    Client {
-        data: [usize; 2],
-    },
+    /// See [`View::send_client_event`] for more info.
+    Client { data: [usize; 2] },
 
-    Clipboard {
-        text: &'a str,
-    },
+    /// A clipboard paste event.
+    ///
+    /// This event is sent if the clipboard contained text data at the time [`View::paste_clipboard`] was called
+    Clipboard { text: &'a str },
 }
 
 impl MouseCursor {
@@ -650,7 +650,7 @@ impl<'a, B: Backend> Event<'a, B> {
                         from_utf8(&bytes[..len]).ok()?
                     },
                 },
-                sys::PUGL_POINTER_IN => Event::PointerEnter {
+                sys::PUGL_POINTER_IN => Event::PointerIn {
                     input: EventInput {
                         time: (*event).crossing.time,
                         x: (*event).crossing.x,
@@ -662,7 +662,7 @@ impl<'a, B: Backend> Event<'a, B> {
                     },
                     mode: CrossingMode::from_raw((*event).crossing.mode),
                 },
-                sys::PUGL_POINTER_OUT => Event::PointerLeave {
+                sys::PUGL_POINTER_OUT => Event::PointerOut {
                     input: EventInput {
                         time: (*event).crossing.time,
                         x: (*event).crossing.x,
