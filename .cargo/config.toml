@@ -1,2 +1,2 @@
 [alias]
-generate-bindings = "run --package pugl-sys-generator --"
+generate-bindings = "run --package pugl-rs-sys-generator --"

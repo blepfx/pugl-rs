@@ -1,6 +1,8 @@
 # pugl-rs-sys
 `pugl-rs-sys` is a minimal bindings generator and a build script for linking [pugl](https://github.com/lv2/pugl), a minimal portability layer for GUIs which is suitable for use in plugins and applications.
 
+`pugl-rs-sys` provides unsafe bindings to the `pugl` library. Check out `pugl-rs` if you need safe bindings instead!
+
 
 > The bindings are not yet thoroughly tested! Use at your own risk!
 

@@ -1,5 +1,5 @@
 [package]
-name = "pugl-sys-generator"
+name = "pugl-rs-sys-generator"
 version = "0.1.0"
 edition = "2024"
 
