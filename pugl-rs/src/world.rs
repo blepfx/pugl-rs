@@ -1,5 +1,13 @@
 use crate::{Backend, UnrealizedView, sys};
-use std::{ffi::CStr, os::raw::c_void, sync::Arc, time::Duration};
+use std::{
+    any::Any,
+    ffi::CStr,
+    mem::{ManuallyDrop, replace},
+    os::raw::c_void,
+    panic::resume_unwind,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 /// World creation/update error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -117,6 +125,10 @@ impl World {
     /// - For continuously animating programs, a timeout that is a reasonable fraction of the ideal frame period should be used, to minimize input latency by ensuring that as many input events are consumed as possible before drawing.
     /// - Returns `true` if an event was received, `false` if the timeout was reached
     pub fn update(&mut self, timeout: Option<Duration>) -> Result<bool, WorldError> {
+        if let Some(poison) = self.0.replace_poison(None) {
+            resume_unwind(poison);
+        }
+
         unsafe {
             let timeout = timeout.map(|d| d.as_secs_f64()).unwrap_or(-1.0);
             match sys::puglUpdate(self.0.raw, timeout) {
@@ -148,24 +160,37 @@ impl World {
 
 pub(crate) struct WorldInner {
     pub raw: *mut sys::PuglWorld,
+    pub poison: Mutex<Option<Box<dyn Any + Send>>>,
 }
 
 impl WorldInner {
     pub fn wrap(world: *mut sys::PuglWorld) -> Arc<Self> {
         unsafe {
-            let arc = Arc::new(WorldInner { raw: world });
+            let arc = Arc::new(WorldInner {
+                raw: world,
+                poison: Mutex::new(None),
+            });
+
             sys::puglSetWorldHandle(world, Arc::as_ptr(&arc) as _);
             arc
         }
     }
 
     /// SAFETY: do not drop this arc after you're done with it!
-    pub unsafe fn from_raw(world: *mut sys::PuglWorld) -> Arc<Self> {
-        unsafe { Arc::from_raw(sys::puglGetWorldHandle(world) as *const Self) }
+    pub unsafe fn from_raw(world: *mut sys::PuglWorld) -> ManuallyDrop<Arc<Self>> {
+        unsafe { ManuallyDrop::new(Arc::from_raw(sys::puglGetWorldHandle(world) as *const Self)) }
     }
 
     pub fn as_world(&self) -> &World {
         unsafe { &*(self as *const _ as *const World) }
+    }
+
+    pub fn replace_poison(
+        &self,
+        panic: Option<Box<dyn Any + Send>>,
+    ) -> Option<Box<dyn Any + Send>> {
+        self.poison.clear_poison();
+        replace(&mut self.poison.lock().unwrap(), panic)
     }
 }
 

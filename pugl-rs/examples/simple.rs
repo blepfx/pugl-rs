@@ -11,17 +11,23 @@ fn main() {
                 std::process::exit(0);
             }
 
-            if matches!(event, Event::ButtonPress {
-                button: MouseButton::Left,
-                ..
-            }) {
+            if matches!(
+                event,
+                Event::ButtonPress {
+                    button: MouseButton::Left,
+                    ..
+                }
+            ) {
                 view.paste_clipboard();
             }
 
-            if matches!(event, Event::ButtonPress {
-                button: MouseButton::Right,
-                ..
-            }) {
+            if matches!(
+                event,
+                Event::ButtonPress {
+                    button: MouseButton::Right,
+                    ..
+                }
+            ) {
                 view.copy_clipboard("waow");
             }
 

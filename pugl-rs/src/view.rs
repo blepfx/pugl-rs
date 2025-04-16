@@ -6,6 +6,7 @@ use std::{
     fmt,
     marker::PhantomData,
     mem::ManuallyDrop,
+    panic::{AssertUnwindSafe, catch_unwind},
     ptr::null_mut,
     sync::{Arc, Mutex},
     time::Duration,
@@ -367,26 +368,32 @@ impl<B: Backend> View<B> {
     /// Among other things, this makes it possible to wake up the event loop for any reason.
     pub fn send_client_event(&self, data: [usize; 2]) -> bool {
         unsafe {
-            sys::puglSendEvent(self.view, &sys::PuglEvent {
-                client: sys::PuglClientEvent {
-                    type_: sys::PUGL_CLIENT,
-                    flags: sys::PUGL_IS_SEND_EVENT,
-                    data1: data[0],
-                    data2: data[1],
+            sys::puglSendEvent(
+                self.view,
+                &sys::PuglEvent {
+                    client: sys::PuglClientEvent {
+                        type_: sys::PUGL_CLIENT,
+                        flags: sys::PUGL_IS_SEND_EVENT,
+                        data1: data[0],
+                        data2: data[1],
+                    },
                 },
-            }) == sys::PUGL_SUCCESS
+            ) == sys::PUGL_SUCCESS
         }
     }
 
     /// Send a close event to the event handler.
     pub fn send_close_event(&self) -> bool {
         unsafe {
-            sys::puglSendEvent(self.view, &sys::PuglEvent {
-                any: sys::PuglAnyEvent {
-                    type_: sys::PUGL_CLOSE,
-                    flags: sys::PUGL_IS_SEND_EVENT,
+            sys::puglSendEvent(
+                self.view,
+                &sys::PuglEvent {
+                    any: sys::PuglAnyEvent {
+                        type_: sys::PUGL_CLOSE,
+                        flags: sys::PUGL_IS_SEND_EVENT,
+                    },
                 },
-            }) == sys::PUGL_SUCCESS
+            ) == sys::PUGL_SUCCESS
         }
     }
 
@@ -553,7 +560,9 @@ impl<B: Backend> View<B> {
         }
     }
 
-    /// Get the clipboard contents.
+    /// Request the current clipboard contents.
+    ///
+    /// A [`Event::Clipboard`] event will be sent to the view with the clipboard contents if it is present.
     pub fn paste_clipboard(&self) -> bool {
         unsafe { sys::puglPaste(self.view) == sys::PUGL_SUCCESS }
     }
@@ -562,7 +571,7 @@ impl<B: Backend> View<B> {
         unsafe {
             ManuallyDrop::new(Self {
                 view,
-                world: WorldInner::from_raw(sys::puglGetWorld(view)),
+                world: ManuallyDrop::into_inner(WorldInner::from_raw(sys::puglGetWorld(view))),
                 phantom: PhantomData,
             })
         }
@@ -646,22 +655,29 @@ impl<B: Backend> fmt::Debug for UnrealizedView<B> {
 type EventHandler<B> = Mutex<Box<dyn FnMut(&View<B>, Event<B>) + Send>>;
 
 unsafe extern "C" fn event_handler<B: Backend>(
-    view: *mut sys::PuglView,
-    raw: *const sys::PuglEvent,
+    raw_view: *mut sys::PuglView,
+    raw_event: *const sys::PuglEvent,
 ) -> sys::PuglStatus {
     unsafe {
-        if let Some(event) = Event::<B>::process(view, raw) {
-            let handle = sys::puglGetHandle(view);
-            if !handle.is_null() {
-                let handler = &mut *(handle as *mut EventHandler<B>);
-                let view = View::from_raw(view);
+        let view = View::from_raw(raw_view);
+        let handler = sys::puglGetHandle(raw_view) as *mut EventHandler<B>;
 
-                handler.lock().unwrap()(&view, event);
-
-                if (*raw).type_ == sys::PUGL_UNREALIZE {
-                    drop(Box::from_raw(handle as *mut EventHandler<B>));
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            if let Some(event) = Event::<B>::process(raw_view, raw_event) {
+                if !handler.is_null() {
+                    if let Ok(mut handler) = (&mut *handler).lock() {
+                        (handler)(&view, event);
+                    }
                 }
             }
+        }));
+
+        if (*raw_event).type_ == sys::PUGL_UNREALIZE {
+            drop(Box::from_raw(handler));
+        }
+
+        if let Err(panic) = result {
+            view.world.replace_poison(Some(panic));
         }
 
         sys::PUGL_SUCCESS

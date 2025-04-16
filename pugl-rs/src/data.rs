@@ -561,7 +561,7 @@ impl Key {
 
             _ => match char::from_u32(raw) {
                 Some(char) => Key::Char(char),
-                None => Key::None,
+                _ => Key::None,
             },
         }
     }
