@@ -125,17 +125,19 @@ impl World {
     /// - For continuously animating programs, a timeout that is a reasonable fraction of the ideal frame period should be used, to minimize input latency by ensuring that as many input events are consumed as possible before drawing.
     /// - Returns `true` if an event was received, `false` if the timeout was reached
     pub fn update(&mut self, timeout: Option<Duration>) -> Result<bool, WorldError> {
-        if let Some(poison) = self.0.replace_poison(None) {
-            resume_unwind(poison);
-        }
-
         unsafe {
             let timeout = timeout.map(|d| d.as_secs_f64()).unwrap_or(-1.0);
-            match sys::puglUpdate(self.0.raw, timeout) {
+            let result = match sys::puglUpdate(self.0.raw, timeout) {
                 sys::PUGL_SUCCESS => Ok(true),
                 sys::PUGL_FAILURE => Ok(false),
                 _ => Err(WorldError),
+            };
+
+            if let Some(poison) = self.0.replace_poison(None) {
+                resume_unwind(poison);
             }
+
+            result
         }
     }
 
